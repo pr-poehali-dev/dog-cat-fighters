@@ -7,8 +7,9 @@ interface GameUIProps {
   onToggleCrafting: () => void;
   onToggleInventory: () => void;
   onToggleQuests: () => void;
-  onChangeLocation: (location: 'kingdom' | 'mine') => void;
-  currentLocation: 'kingdom' | 'mine';
+  onChangeLocation: (location: 'kingdom' | 'mine' | 'boss-arena') => void;
+  currentLocation: 'kingdom' | 'mine' | 'boss-arena';
+  bossUnlocked: boolean;
 }
 
 export default function GameUI({
@@ -18,6 +19,7 @@ export default function GameUI({
   onToggleQuests,
   onChangeLocation,
   currentLocation,
+  bossUnlocked,
 }: GameUIProps) {
   const weapon = player.inventory.find((i) => i.id === player.equippedWeapon);
 
@@ -93,6 +95,19 @@ export default function GameUI({
         >
           ⛏️ Шахта
         </Button>
+        {bossUnlocked && (
+          <Button
+            onClick={() => onChangeLocation('boss-arena')}
+            className={`${
+              currentLocation === 'boss-arena'
+                ? 'bg-red-600 hover:bg-red-700'
+                : 'bg-gray-800 hover:bg-gray-700'
+            } border-2 border-red-600 animate-pulse`}
+            size="sm"
+          >
+            🐉 БОСС!
+          </Button>
+        )}
       </div>
 
       <div className="fixed bottom-20 right-4 text-white text-xs bg-black/60 p-2 rounded">

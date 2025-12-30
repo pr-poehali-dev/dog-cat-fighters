@@ -3,19 +3,28 @@ import { PlayerState, Enemy } from '@/pages/Index';
 interface GameWorldProps {
   player: PlayerState;
   enemies: Enemy[];
-  location: 'kingdom' | 'mine';
+  location: 'kingdom' | 'mine' | 'boss-arena';
+  playerEmoji: string;
 }
 
-export default function GameWorld({ player, enemies, location }: GameWorldProps) {
+export default function GameWorld({ player, enemies, location, playerEmoji }: GameWorldProps) {
   const getEnemySprite = (type: string) => {
     if (type === 'cat-warrior') return '😾';
     if (type === 'cat-mage') return '🙀';
+    if (type === 'cat-assassin') return '😿';
+    if (type === 'cat-tank') return '😼';
     if (type === 'cat-boss') return '😼';
+    if (type === 'boss-dragon') return '🐉🔥';
     return '🐱';
   };
 
-  const bgColor = location === 'kingdom' ? '#2d5016' : '#3d2817';
-  const floorColor = location === 'kingdom' ? '#4a7c1f' : '#5a3e24';
+  const getBgColors = () => {
+    if (location === 'boss-arena') return { bg: '#1a0a0a', floor: '#2d1414' };
+    if (location === 'mine') return { bg: '#3d2817', floor: '#5a3e24' };
+    return { bg: '#2d5016', floor: '#4a7c1f' };
+  };
+
+  const { bg: bgColor, floor: floorColor } = getBgColors();
 
   return (
     <div 
@@ -34,7 +43,7 @@ export default function GameWorld({ player, enemies, location }: GameWorldProps)
           filter: 'drop-shadow(2px 2px 0 rgba(0,0,0,0.5))',
         }}
       >
-        🐕
+        {playerEmoji}
       </div>
 
       {player.isAttacking && (
@@ -95,6 +104,15 @@ export default function GameWorld({ player, enemies, location }: GameWorldProps)
           <div className="absolute text-3xl" style={{ left: '50px', top: '50px' }}>🏰</div>
           <div className="absolute text-2xl" style={{ left: '700px', top: '100px' }}>🌳</div>
           <div className="absolute text-2xl" style={{ left: '650px', top: '450px' }}>🌳</div>
+        </>
+      )}
+
+      {location === 'boss-arena' && (
+        <>
+          <div className="absolute text-6xl animate-pulse" style={{ left: '350px', top: '50px' }}>👑</div>
+          <div className="absolute text-3xl" style={{ left: '100px', top: '400px' }}>🔥</div>
+          <div className="absolute text-3xl" style={{ left: '700px', top: '400px' }}>🔥</div>
+          <div className="absolute text-2xl" style={{ left: '400px', top: '450px' }}>💀</div>
         </>
       )}
     </div>

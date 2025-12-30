@@ -5,6 +5,10 @@ import GameUI from '@/components/game/GameUI';
 import CraftingMenu from '@/components/game/CraftingMenu';
 import InventoryMenu from '@/components/game/InventoryMenu';
 import QuestLog from '@/components/game/QuestLog';
+import CutsceneModal from '@/components/game/CutsceneModal';
+import CharacterSelector from '@/components/game/CharacterSelector';
+import CustomizationModal from '@/components/game/CustomizationModal';
+import GalHelper from '@/components/game/GalHelper';
 
 export interface PlayerState {
   x: number;
@@ -34,7 +38,7 @@ export interface Enemy {
   y: number;
   health: number;
   maxHealth: number;
-  type: 'cat-warrior' | 'cat-mage' | 'cat-boss';
+  type: 'cat-warrior' | 'cat-mage' | 'cat-assassin' | 'cat-tank' | 'cat-boss' | 'boss-dragon';
   isAlive: boolean;
 }
 
@@ -48,6 +52,15 @@ export interface Quest {
 }
 
 export default function Index() {
+  const [showIntro, setShowIntro] = useState(true);
+  const [cutscene, setCutscene] = useState<'intro' | 'boss-appear' | 'victory' | null>('intro');
+  const [currentCharacter, setCurrentCharacter] = useState<'dog' | 'pierre'>('dog');
+  const [dogEmoji, setDogEmoji] = useState('🐕');
+  const [pierreEmoji, setPierreEmoji] = useState('🦜');
+  const [showCustomization, setShowCustomization] = useState(false);
+  const [galMessage, setGalMessage] = useState<{ text: string; quest?: string } | null>(null);
+  const [bossUnlocked, setBossUnlocked] = useState(false);
+
   const [player, setPlayer] = useState<PlayerState>({
     x: 100,
     y: 250,
@@ -67,16 +80,18 @@ export default function Index() {
     { id: 'e1', x: 300, y: 200, health: 50, maxHealth: 50, type: 'cat-warrior', isAlive: true },
     { id: 'e2', x: 500, y: 300, health: 50, maxHealth: 50, type: 'cat-warrior', isAlive: true },
     { id: 'e3', x: 650, y: 150, health: 80, maxHealth: 80, type: 'cat-mage', isAlive: true },
+    { id: 'e4', x: 200, y: 400, health: 60, maxHealth: 60, type: 'cat-assassin', isAlive: true },
+    { id: 'e5', x: 550, y: 450, health: 100, maxHealth: 100, type: 'cat-tank', isAlive: true },
   ]);
 
   const [quests, setQuests] = useState<Quest[]>([
     {
       id: 'q1',
       title: 'Месть за короля',
-      description: 'Победи 3 котов-воинов',
+      description: 'Победи 5 котов',
       completed: false,
       progress: 0,
-      goal: 3,
+      goal: 5,
     },
     {
       id: 'q2',
@@ -91,13 +106,39 @@ export default function Index() {
   const [showCrafting, setShowCrafting] = useState(false);
   const [showInventory, setShowInventory] = useState(false);
   const [showQuests, setShowQuests] = useState(false);
-  const [currentLocation, setCurrentLocation] = useState<'kingdom' | 'mine'>('kingdom');
+  const [currentLocation, setCurrentLocation] = useState<'kingdom' | 'mine' | 'boss-arena'>('kingdom');
   const [keys, setKeys] = useState<Set<string>>(new Set());
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      if (showIntro) {
+        setGalMessage({
+          text: 'Привет, воин! Я Гал, твой верный помощник. Я буду звонить тебе через волшебное зеркало и давать квесты. Удачи!',
+        });
+      }
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [showIntro]);
+
+  useEffect(() => {
+    const deadEnemies = enemies.filter((e) => !e.isAlive).length;
+    if (deadEnemies >= 5 && !bossUnlocked) {
+      setBossUnlocked(true);
+      setTimeout(() => {
+        setGalMessage({
+          text: 'Невероятно! Ты победил всех котов! Но... я чувствую тёмную силу. Кот Альфа на драконе появился в Арене Босса!',
+          quest: 'Победи Кота Альфа',
+        });
+      }, 1000);
+    }
+  }, [enemies, bossUnlocked]);
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (cutscene) return;
       setKeys((prev) => new Set(prev).add(e.key.toLowerCase()));
-      
+
       if (e.key === ' ') {
         e.preventDefault();
         handleAttack();
@@ -122,12 +163,12 @@ export default function Index() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, []);
+  }, [cutscene]);
 
   useEffect(() => {
-    const moveSpeed = 3;
+    const moveSpeed = currentCharacter === 'pierre' ? 4 : 3;
     const interval = setInterval(() => {
-      if (keys.size === 0 || player.isAttacking) return;
+      if (keys.size === 0 || player.isAttacking || cutscene) return;
 
       setPlayer((prev) => {
         let newX = prev.x;
@@ -156,7 +197,7 @@ export default function Index() {
     }, 1000 / 60);
 
     return () => clearInterval(interval);
-  }, [keys, player.isAttacking]);
+  }, [keys, player.isAttacking, cutscene, currentCharacter]);
 
   const handleAttack = useCallback(() => {
     if (player.isAttacking) return;
@@ -165,7 +206,8 @@ export default function Index() {
 
     const attackRange = 50;
     const weapon = player.inventory.find((item) => item.id === player.equippedWeapon);
-    const damage = weapon?.attack || 5;
+    const baseDamage = weapon?.attack || 5;
+    const damage = currentCharacter === 'pierre' ? baseDamage * 1.2 : baseDamage;
 
     setEnemies((prevEnemies) =>
       prevEnemies.map((enemy) => {
@@ -192,6 +234,10 @@ export default function Index() {
               )
             );
 
+            if (enemy.type === 'boss-dragon') {
+              setTimeout(() => setCutscene('victory'), 500);
+            }
+
             if (currentLocation === 'mine') {
               const materials = [
                 { id: 'coal', name: 'Уголь', icon: '🪨' },
@@ -213,12 +259,18 @@ export default function Index() {
     setTimeout(() => {
       setPlayer((prev) => ({ ...prev, isAttacking: false }));
     }, 300);
-  }, [player, currentLocation]);
+  }, [player, currentLocation, currentCharacter]);
 
-  const addToInventory = (id: string, name: string, type: 'material' | 'weapon' | 'armor', icon: string, count: number) => {
+  const addToInventory = (
+    id: string,
+    name: string,
+    type: 'material' | 'weapon' | 'armor',
+    icon: string,
+    count: number
+  ) => {
     setPlayer((prev) => {
       const existingItem = prev.inventory.find((item) => item.id === id);
-      
+
       if (existingItem) {
         return {
           ...prev,
@@ -235,14 +287,14 @@ export default function Index() {
     });
   };
 
-  const craftItem = (recipe: { 
-    id: string; 
-    name: string; 
-    type: 'weapon' | 'armor'; 
-    icon: string; 
-    attack?: number; 
-    defense?: number; 
-    materials: { id: string; count: number }[] 
+  const craftItem = (recipe: {
+    id: string;
+    name: string;
+    type: 'weapon' | 'armor';
+    icon: string;
+    attack?: number;
+    defense?: number;
+    materials: { id: string; count: number }[];
   }) => {
     const hasMaterials = recipe.materials.every((material) => {
       const item = player.inventory.find((i) => i.id === material.id);
@@ -286,29 +338,66 @@ export default function Index() {
     }));
   };
 
+  const handleLocationChange = (loc: 'kingdom' | 'mine' | 'boss-arena') => {
+    setCurrentLocation(loc);
+
+    if (loc === 'boss-arena' && !enemies.some((e) => e.type === 'boss-dragon')) {
+      setCutscene('boss-appear');
+      setTimeout(() => {
+        setEnemies((prev) => [
+          ...prev,
+          {
+            id: 'boss',
+            x: 400,
+            y: 100,
+            health: 300,
+            maxHealth: 300,
+            type: 'boss-dragon',
+            isAlive: true,
+          },
+        ]);
+      }, 3000);
+    }
+  };
+
+  const playerEmoji = currentCharacter === 'dog' ? dogEmoji : pierreEmoji;
+
   return (
     <div className="relative w-full h-screen bg-[#1a1a2e] overflow-hidden">
-      <GameWorld
-        player={player}
-        enemies={enemies}
-        location={currentLocation}
-      />
+      {cutscene && (
+        <CutsceneModal
+          scene={cutscene}
+          onClose={() => {
+            setCutscene(null);
+            if (showIntro) setShowIntro(false);
+          }}
+        />
+      )}
 
-      <GameUI
-        player={player}
-        onToggleCrafting={() => setShowCrafting(!showCrafting)}
-        onToggleInventory={() => setShowInventory(!showInventory)}
-        onToggleQuests={() => setShowQuests(!showQuests)}
-        onChangeLocation={(loc) => setCurrentLocation(loc)}
-        currentLocation={currentLocation}
-      />
+      <GameWorld player={player} enemies={enemies} location={currentLocation} playerEmoji={playerEmoji} />
+
+      {!showIntro && (
+        <>
+          <CharacterSelector
+            currentCharacter={currentCharacter}
+            onSelectCharacter={setCurrentCharacter}
+            onCustomize={() => setShowCustomization(true)}
+          />
+
+          <GameUI
+            player={player}
+            onToggleCrafting={() => setShowCrafting(!showCrafting)}
+            onToggleInventory={() => setShowInventory(!showInventory)}
+            onToggleQuests={() => setShowQuests(!showQuests)}
+            onChangeLocation={handleLocationChange}
+            currentLocation={currentLocation}
+            bossUnlocked={bossUnlocked}
+          />
+        </>
+      )}
 
       {showCrafting && (
-        <CraftingMenu
-          inventory={player.inventory}
-          onCraft={craftItem}
-          onClose={() => setShowCrafting(false)}
-        />
+        <CraftingMenu inventory={player.inventory} onCraft={craftItem} onClose={() => setShowCrafting(false)} />
       )}
 
       {showInventory && (
@@ -321,16 +410,48 @@ export default function Index() {
         />
       )}
 
-      {showQuests && (
-        <QuestLog
-          quests={quests}
-          onClose={() => setShowQuests(false)}
+      {showQuests && <QuestLog quests={quests} onClose={() => setShowQuests(false)} />}
+
+      {showCustomization && (
+        <CustomizationModal
+          currentDog={dogEmoji}
+          currentPierre={pierreEmoji}
+          onSave={(custom) => {
+            setDogEmoji(custom.dogEmoji);
+            setPierreEmoji(custom.pierreEmoji);
+          }}
+          onClose={() => setShowCustomization(false)}
+        />
+      )}
+
+      {galMessage && (
+        <GalHelper
+          message={galMessage.text}
+          questTitle={galMessage.quest}
+          onAccept={
+            galMessage.quest
+              ? () => {
+                  setQuests((prev) => [
+                    ...prev,
+                    {
+                      id: 'q-boss',
+                      title: galMessage.quest!,
+                      description: 'Победи финального босса',
+                      completed: false,
+                      progress: 0,
+                      goal: 1,
+                    },
+                  ]);
+                }
+              : undefined
+          }
+          onClose={() => setGalMessage(null)}
         />
       )}
 
       <MobileControls
         onMove={(direction) => {
-          const moveSpeed = 5;
+          const moveSpeed = currentCharacter === 'pierre' ? 6 : 5;
           setPlayer((prev) => {
             let newX = prev.x;
             let newY = prev.y;
